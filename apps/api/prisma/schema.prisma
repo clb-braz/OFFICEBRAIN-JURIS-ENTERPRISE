@@ -1,0 +1,1019 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp")]
+}
+
+// ==================== ENUMS ====================
+
+enum TipoPessoa {
+  FISICA
+  JURIDICA
+}
+
+enum StatusProcesso {
+  ATIVO
+  ARQUIVADO
+  SUSPENSO
+  BAIXADO
+  RECURSO
+}
+
+enum FaseProcessual {
+  CONHECIMENTO
+  EXECUCAO
+  RECURSOS
+  CUMPRIMENTO_SENTENCA
+  ENCERRADO
+}
+
+enum AreaDireito {
+  CIVIL
+  CONSUMIDOR
+  FAMILIA
+  SUCESSOES
+  TRABALHISTA
+  EMPRESARIAL
+  TRIBUTARIO
+  ADMINISTRATIVO
+  PENAL
+  PREVIDENCIARIO
+}
+
+enum TipoParticipacao {
+  AUTOR
+  REU
+  TERCEIRO_INTERESSADO
+  ASSISTENTE
+  LITISCONSORTE
+}
+
+enum StatusAudiencia {
+  AGENDADA
+  REALIZADA
+  ADIADA
+  CANCELADA
+}
+
+enum TipoAudiencia {
+  CONCILIACAO
+  INSTRUCAO
+  JULGAMENTO
+  UNA
+  VIRTUAL
+}
+
+enum StatusPrazo {
+  PENDENTE
+  CUMPRIDO
+  PERDIDO
+  PRORROGADO
+}
+
+enum TipoPrazo {
+  CONTESTACAO
+  RECURSO
+  MANIFESTACAO
+  CUMPRIMENTO
+  PAGAMENTO
+  OUTROS
+}
+
+enum TipoDocumento {
+  PETICAO_INICIAL
+  CONTESTACAO
+  RECURSO
+  CONTRATO
+  PROCURACAO
+  SUBSTABELECIMENTO
+  COMPROVANTE
+  DOCUMENTO_PESSOAL
+  SENTENCA
+  ACORDAO
+  DESPACHO
+  OUTROS
+}
+
+enum StatusTarefa {
+  A_FAZER
+  EM_ANDAMENTO
+  AGUARDANDO_CLIENTE
+  AGUARDANDO_TERCEIRO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum PrioridadeTarefa {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+enum TipoHonorario {
+  CONTRATUAL
+  EXITO
+  SUCUMBENCIA
+  CONSULTORIA
+  AVULSO
+}
+
+enum StatusHonorario {
+  PENDENTE
+  PARCIAL
+  PAGO
+  CANCELADO
+}
+
+enum TipoMovimentacao {
+  RECEITA
+  DESPESA
+}
+
+enum CategoriaMovimentacao {
+  HONORARIOS
+  CUSTAS
+  DEPOSITO_JUDICIAL
+  PERICIA
+  DILIGENCIAS
+  OUTROS
+}
+
+enum StatusMovimentacao {
+  PREVISTO
+  CONFIRMADO
+  CANCELADO
+}
+
+enum TipoAutomacao {
+  NOTIFICACAO_PRAZO
+  NOTIFICACAO_AUDIENCIA
+  ATUALIZACAO_PROCESSO
+  GERACAO_DOCUMENTO
+  ANALISE_IA
+}
+
+enum StatusAutomacao {
+  ATIVA
+  PAUSADA
+  ERRO
+  CONCLUIDA
+}
+
+enum PerfilUsuario {
+  ADMIN
+  SOCIO
+  ADVOGADO
+  ESTAGIARIO
+  FINANCEIRO
+  SECRETARIA
+}
+
+enum RegimeTributario {
+  SIMPLES_NACIONAL
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+  MEI
+}
+
+// ==================== WORKSPACE / MULTI-TENANT ====================
+
+model Workspace {
+  id                String           @id @default(uuid())
+  nome              String
+  slug              String           @unique
+  cnpj              String?          @unique
+  logo              String?
+  endereco          String?
+  telefone          String?
+  email             String?
+  site              String?
+  regimeTributario  RegimeTributario @default(SIMPLES_NACIONAL)
+  configuracoes     Json?
+  ativo             Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  membros           WorkspaceMembro[]
+  clientes          Cliente[]
+  processos         Processo[]
+  documentos        Documento[]
+  tarefas           Tarefa[]
+  honorarios        Honorario[]
+  movimentacoes     MovimentacaoFinanceira[]
+  centrosCusto      CentroCusto[]
+  configuracaoIA    ConfiguracaoIA?
+  notificacoes      Notificacao[]
+  automacoes        Automacao[]
+
+  @@index([slug])
+}
+
+model WorkspaceMembro {
+  id          String        @id @default(uuid())
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  usuarioId   String
+  usuario     Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  funcao      PerfilUsuario @default(ADVOGADO)
+  ativo       Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+
+  @@unique([workspaceId, usuarioId])
+  @@index([workspaceId])
+  @@index([usuarioId])
+}
+
+// ==================== USUARIOS E AUTENTICACAO ====================
+
+model Usuario {
+  id                   String              @id @default(uuid())
+  email                String              @unique
+  senha                String
+  nome                 String
+  oab                  String?
+  telefone             String?
+  perfil               PerfilUsuario       @default(ADVOGADO)
+  ativo                Boolean             @default(true)
+  avatarUrl            String?
+  emailVerificado      Boolean             @default(false)
+  ultimoLogin          DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  workspaces           WorkspaceMembro[]
+  processosResponsavel Processo[]          @relation("AdvogadoResponsavel")
+  processosEquipe      ProcessoEquipe[]
+  tarefasAtribuidas    Tarefa[]            @relation("ResponsavelTarefa")
+  tarefasCriadas       Tarefa[]            @relation("CriadorTarefa")
+  prazosResponsavel    Prazo[]
+  documentosUpload     Documento[]
+  honorariosAdvogado   Honorario[]
+  logsAcao             LogAuditoria[]
+  sessoes              SessaoLogin[]
+  notificacoes         Notificacao[]
+  comentarios          Comentario[]
+  refreshTokens        RefreshToken[]
+
+  @@index([email])
+  @@index([perfil])
+}
+
+model SessaoLogin {
+  id          String   @id @default(uuid())
+  usuarioId   String
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  token       String   @unique
+  ip          String?
+  userAgent   String?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([token])
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  usuarioId   String
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  token       String   @unique
+  expiresAt   DateTime
+  revogado    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([token])
+}
+
+// ==================== CLIENTES ====================
+
+model Cliente {
+  id              String      @id @default(uuid())
+  workspaceId     String?
+  workspace       Workspace?  @relation(fields: [workspaceId], references: [id])
+  tipo            TipoPessoa
+  nome            String
+  nomeFantasia    String?
+  razaoSocial     String?
+  cpfCnpj         String      @unique
+  rg              String?
+  dataNascimento  DateTime?
+  email           String?
+  telefone        String?
+  celular         String?
+  profissao       String?
+  estadoCivil     String?
+  observacoes     String?
+  tags            String[]
+  ativo           Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  enderecos       Endereco[]
+  documentos      Documento[]
+  processos       ProcessoCliente[]
+  honorarios      Honorario[]
+  movimentacoes   MovimentacaoFinanceira[]
+  interacoes      InteracaoCliente[]
+  tarefas         Tarefa[]
+
+  @@index([workspaceId])
+  @@index([cpfCnpj])
+  @@index([nome])
+  @@index([email])
+}
+
+model Endereco {
+  id          String   @id @default(uuid())
+  clienteId   String
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  tipo        String   @default("RESIDENCIAL")
+  cep         String
+  logradouro  String
+  numero      String
+  complemento String?
+  bairro      String
+  cidade      String
+  uf          String
+  principal   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clienteId])
+}
+
+model InteracaoCliente {
+  id          String   @id @default(uuid())
+  clienteId   String
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  tipo        String
+  descricao   String
+  data        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([clienteId])
+  @@index([data])
+}
+
+// ==================== PROCESSOS ====================
+
+model Processo {
+  id                    String         @id @default(uuid())
+  workspaceId           String?
+  workspace             Workspace?     @relation(fields: [workspaceId], references: [id])
+  numeroCnj             String         @unique
+  numeroAntigo          String?
+  tipoAcao              String
+  classeProcessual      String?
+  assuntoPrincipal      String?
+  area                  AreaDireito
+  status                StatusProcesso @default(ATIVO)
+  fase                  FaseProcessual @default(CONHECIMENTO)
+  vara                  String?
+  foro                  String?
+  comarca               String?
+  uf                    String?
+  tribunal              String?
+  instancia             Int            @default(1)
+  valorCausa            Decimal?       @db.Decimal(15, 2)
+  valorCondenacao       Decimal?       @db.Decimal(15, 2)
+  objetoAcao            String?
+  
+  dataDistribuicao      DateTime?
+  dataCitacao           DateTime?
+  dataSentenca          DateTime?
+  dataTransitoJulgado   DateTime?
+  
+  // Campos de IA
+  resumoIA              String?
+  riscosIdentificados   String[]
+  probabilidadeExito    Float?
+  pontosAtencao         String[]
+  estrategiaSugerida    String?
+  artigosRelacionados   String[]
+  
+  advogadoResponsavelId String?
+  advogadoResponsavel   Usuario?       @relation("AdvogadoResponsavel", fields: [advogadoResponsavelId], references: [id])
+  
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  clientes              ProcessoCliente[]
+  partes                ParteProcesso[]
+  equipe                ProcessoEquipe[]
+  audiencias            Audiencia[]
+  prazos                Prazo[]
+  documentos            Documento[]
+  tarefas               Tarefa[]
+  honorarios            Honorario[]
+  movimentacoes         MovimentacaoFinanceira[]
+  andamentos            AndamentoProcessual[]
+  referenciasJuridicas  ReferenciaJuridica[]
+  
+  @@index([workspaceId])
+  @@index([numeroCnj])
+  @@index([status])
+  @@index([area])
+  @@index([advogadoResponsavelId])
+}
+
+model ProcessoCliente {
+  id           String           @id @default(uuid())
+  processoId   String
+  processo     Processo         @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  clienteId    String
+  cliente      Cliente          @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  participacao TipoParticipacao
+  principal    Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+
+  @@unique([processoId, clienteId])
+  @@index([processoId])
+  @@index([clienteId])
+}
+
+model ParteProcesso {
+  id          String           @id @default(uuid())
+  processoId  String
+  processo    Processo         @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  nome        String
+  cpfCnpj     String?
+  tipo        TipoParticipacao
+  advogado    String?
+  oabAdvogado String?
+  createdAt   DateTime         @default(now())
+
+  @@index([processoId])
+}
+
+model ProcessoEquipe {
+  id         String   @id @default(uuid())
+  processoId String
+  processo   Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  usuarioId  String
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  funcao     String?
+  createdAt  DateTime @default(now())
+
+  @@unique([processoId, usuarioId])
+  @@index([processoId])
+  @@index([usuarioId])
+}
+
+model AndamentoProcessual {
+  id          String   @id @default(uuid())
+  processoId  String
+  processo    Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  data        DateTime
+  descricao   String
+  origem      String?
+  tipo        String?
+  categoriaIA String?
+  createdAt   DateTime @default(now())
+
+  @@index([processoId])
+  @@index([data])
+}
+
+// ==================== AUDIENCIAS E PRAZOS ====================
+
+model Audiencia {
+  id          String          @id @default(uuid())
+  processoId  String
+  processo    Processo        @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  tipo        TipoAudiencia
+  data        DateTime
+  hora        String?
+  local       String?
+  sala        String?
+  juiz        String?
+  status      StatusAudiencia @default(AGENDADA)
+  observacoes String?
+  linkVirtual String?
+  resultado   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([processoId])
+  @@index([data])
+  @@index([status])
+}
+
+model Prazo {
+  id            String           @id @default(uuid())
+  processoId    String
+  processo      Processo         @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  tipo          TipoPrazo
+  descricao     String
+  dataLimite    DateTime
+  dataCumprido  DateTime?
+  status        StatusPrazo      @default(PENDENTE)
+  responsavelId String?
+  responsavel   Usuario?         @relation(fields: [responsavelId], references: [id])
+  prioridade    PrioridadeTarefa @default(MEDIA)
+  observacoes   String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([processoId])
+  @@index([dataLimite])
+  @@index([status])
+  @@index([responsavelId])
+}
+
+// ==================== DOCUMENTOS ====================
+
+model Documento {
+  id              String        @id @default(uuid())
+  workspaceId     String?
+  workspace       Workspace?    @relation(fields: [workspaceId], references: [id])
+  nome            String
+  tipo            TipoDocumento
+  descricao       String?
+  arquivoUrl      String
+  arquivoPath     String?
+  tamanhoBytes    Int?
+  mimeType        String?
+  versao          Int           @default(1)
+  
+  processoId      String?
+  processo        Processo?     @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  clienteId       String?
+  cliente         Cliente?      @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  uploadPorId     String?
+  uploadPor       Usuario?      @relation(fields: [uploadPorId], references: [id])
+  
+  // Campos extraidos por IA
+  partesExtraidas  String[]
+  valoresExtraidos String[]
+  datasExtraidas   String[]
+  resumoIA         String?
+  textoCompleto    String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  versoes         VersaoDocumento[]
+
+  @@index([workspaceId])
+  @@index([processoId])
+  @@index([clienteId])
+  @@index([tipo])
+}
+
+model VersaoDocumento {
+  id          String    @id @default(uuid())
+  documentoId String
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  versao      Int
+  arquivoUrl  String
+  alteracoes  String?
+  createdAt   DateTime  @default(now())
+
+  @@index([documentoId])
+}
+
+// ==================== TAREFAS / KANBAN ====================
+
+model Tarefa {
+  id            String           @id @default(uuid())
+  workspaceId   String?
+  workspace     Workspace?       @relation(fields: [workspaceId], references: [id])
+  titulo        String
+  descricao     String?
+  status        StatusTarefa     @default(A_FAZER)
+  prioridade    PrioridadeTarefa @default(MEDIA)
+  dataLimite    DateTime?
+  dataConclusao DateTime?
+  ordem         Int              @default(0)
+  etiquetas     String[]
+  
+  processoId    String?
+  processo      Processo?        @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  clienteId     String?
+  cliente       Cliente?         @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  responsavelId String?
+  responsavel   Usuario?         @relation("ResponsavelTarefa", fields: [responsavelId], references: [id])
+  criadorId     String?
+  criador       Usuario?         @relation("CriadorTarefa", fields: [criadorId], references: [id])
+  
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  comentarios   Comentario[]
+  checklist     ChecklistItem[]
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([processoId])
+  @@index([clienteId])
+  @@index([responsavelId])
+  @@index([dataLimite])
+}
+
+model ChecklistItem {
+  id        String   @id @default(uuid())
+  tarefaId  String
+  tarefa    Tarefa   @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  texto     String
+  concluido Boolean  @default(false)
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([tarefaId])
+}
+
+model Comentario {
+  id        String   @id @default(uuid())
+  tarefaId  String
+  tarefa    Tarefa   @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  autorId   String
+  autor     Usuario  @relation(fields: [autorId], references: [id])
+  texto     String
+  createdAt DateTime @default(now())
+
+  @@index([tarefaId])
+}
+
+// ==================== FINANCEIRO ====================
+
+model Honorario {
+  id              String          @id @default(uuid())
+  workspaceId     String?
+  workspace       Workspace?      @relation(fields: [workspaceId], references: [id])
+  tipo            TipoHonorario
+  descricao       String
+  valor           Decimal         @db.Decimal(15, 2)
+  percentualExito Float?
+  status          StatusHonorario @default(PENDENTE)
+  
+  processoId      String?
+  processo        Processo?       @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  clienteId       String
+  cliente         Cliente         @relation(fields: [clienteId], references: [id])
+  advogadoId      String?
+  advogado        Usuario?        @relation(fields: [advogadoId], references: [id])
+  centroCustoId   String?
+  centroCusto     CentroCusto?    @relation(fields: [centroCustoId], references: [id])
+  
+  dataVencimento  DateTime?
+  dataPagamento   DateTime?
+  valorPago       Decimal?        @db.Decimal(15, 2)
+  formaPagamento  String?
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  parcelas        ParcelaHonorario[]
+  notasFiscais    NotaFiscal[]
+
+  @@index([workspaceId])
+  @@index([clienteId])
+  @@index([processoId])
+  @@index([status])
+  @@index([advogadoId])
+}
+
+model ParcelaHonorario {
+  id          String    @id @default(uuid())
+  honorarioId String
+  honorario   Honorario @relation(fields: [honorarioId], references: [id], onDelete: Cascade)
+  numero      Int
+  valor       Decimal   @db.Decimal(15, 2)
+  vencimento  DateTime
+  pago        Boolean   @default(false)
+  dataPago    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([honorarioId])
+  @@index([vencimento])
+}
+
+model MovimentacaoFinanceira {
+  id            String                @id @default(uuid())
+  workspaceId   String?
+  workspace     Workspace?            @relation(fields: [workspaceId], references: [id])
+  tipo          TipoMovimentacao
+  categoria     CategoriaMovimentacao
+  descricao     String
+  valor         Decimal               @db.Decimal(15, 2)
+  data          DateTime
+  status        StatusMovimentacao    @default(PREVISTO)
+  comprovante   String?
+  
+  processoId    String?
+  processo      Processo?             @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  clienteId     String?
+  cliente       Cliente?              @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  centroCustoId String?
+  centroCusto   CentroCusto?          @relation(fields: [centroCustoId], references: [id])
+  
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  calculosIrpf  CalculoIRPF[]
+
+  @@index([workspaceId])
+  @@index([tipo])
+  @@index([data])
+  @@index([processoId])
+  @@index([clienteId])
+}
+
+model CentroCusto {
+  id            String      @id @default(uuid())
+  workspaceId   String?
+  workspace     Workspace?  @relation(fields: [workspaceId], references: [id])
+  nome          String
+  descricao     String?
+  ativo         Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  honorarios    Honorario[]
+  movimentacoes MovimentacaoFinanceira[]
+
+  @@index([workspaceId])
+  @@index([nome])
+}
+
+model NotaFiscal {
+  id          String    @id @default(uuid())
+  honorarioId String
+  honorario   Honorario @relation(fields: [honorarioId], references: [id], onDelete: Cascade)
+  numero      String
+  serie       String?
+  dataEmissao DateTime
+  valorTotal  Decimal   @db.Decimal(15, 2)
+  valorIss    Decimal?  @db.Decimal(15, 2)
+  valorIr     Decimal?  @db.Decimal(15, 2)
+  arquivoUrl  String?
+  createdAt   DateTime  @default(now())
+
+  @@index([honorarioId])
+  @@index([numero])
+}
+
+// ==================== MODULO IRPF/IRPJ ====================
+
+model CalculoIRPF {
+  id                String                  @id @default(uuid())
+  movimentacaoId    String?
+  movimentacao      MovimentacaoFinanceira? @relation(fields: [movimentacaoId], references: [id])
+  competencia       DateTime
+  baseCalculo       Decimal                 @db.Decimal(15, 2)
+  aliquota          Float
+  deducoes          Decimal                 @db.Decimal(15, 2) @default(0)
+  impostoDevido     Decimal                 @db.Decimal(15, 2)
+  impostoRetido     Decimal                 @db.Decimal(15, 2) @default(0)
+  impostoPagar      Decimal                 @db.Decimal(15, 2)
+  codigoDarf        String?
+  dataVencimento    DateTime?
+  pago              Boolean                 @default(false)
+  dataPagamento     DateTime?
+  observacoes       String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@index([competencia])
+  @@index([pago])
+}
+
+model ConfiguracaoFiscal {
+  id                String           @id @default(uuid())
+  ano               Int
+  regime            RegimeTributario
+  faixasIRPF        Json?
+  aliquotaISS       Float            @default(5.0)
+  aliquotaIRPJ      Float?
+  aliquotaCSLL      Float?
+  aliquotaPIS       Float?
+  aliquotaCOFINS    Float?
+  limiteSimples     Decimal?         @db.Decimal(15, 2)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([ano, regime])
+}
+
+// ==================== LEGISLACAO ====================
+
+model Legislacao {
+  id          String   @id @default(uuid())
+  codigo      String
+  nome        String
+  descricao   String?
+  dataPublicacao DateTime?
+  vigente     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  artigos     ArtigoLei[]
+
+  @@unique([codigo])
+  @@index([codigo])
+}
+
+model ArtigoLei {
+  id            String                @id @default(uuid())
+  legislacaoId  String
+  legislacao    Legislacao            @relation(fields: [legislacaoId], references: [id], onDelete: Cascade)
+  numeroArtigo  String
+  livro         String?
+  titulo        String?
+  capitulo      String?
+  secao         String?
+  subsecao      String?
+  texto         String
+  caput         String?
+  paragrafos    String[]
+  incisos       String[]
+  alineas       String[]
+  vigente       Boolean               @default(true)
+  revogadoPor   String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  embedding     ArtigoEmbedding?
+  referencias   ReferenciaJuridica[]
+
+  @@unique([legislacaoId, numeroArtigo])
+  @@index([legislacaoId])
+  @@index([numeroArtigo])
+}
+
+model ArtigoEmbedding {
+  id          String    @id @default(uuid())
+  artigoId    String    @unique
+  artigo      ArtigoLei @relation(fields: [artigoId], references: [id], onDelete: Cascade)
+  embedding   Json?     // Vector embedding armazenado como JSON array
+  modelo      String    @default("text-embedding-3-small")
+  createdAt   DateTime  @default(now())
+
+  @@index([artigoId])
+}
+
+model ReferenciaJuridica {
+  id          String    @id @default(uuid())
+  processoId  String
+  processo    Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  artigoId    String
+  artigo      ArtigoLei @relation(fields: [artigoId], references: [id])
+  contexto    String?
+  relevancia  Float?
+  createdAt   DateTime  @default(now())
+
+  @@index([processoId])
+  @@index([artigoId])
+}
+
+// ==================== JURISPRUDENCIA ====================
+
+model Jurisprudencia {
+  id            String                @id @default(uuid())
+  tribunal      String
+  tipo          String
+  numero        String
+  relator       String?
+  dataJulgamento DateTime?
+  dataPublicacao DateTime?
+  ementa        String
+  textoCompleto String?
+  temas         String[]
+  palavrasChave String[]
+  referencias   String[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  embedding     JurisprudenciaEmbedding?
+
+  @@unique([tribunal, numero])
+  @@index([tribunal])
+  @@index([temas])
+}
+
+model JurisprudenciaEmbedding {
+  id                String         @id @default(uuid())
+  jurisprudenciaId  String         @unique
+  jurisprudencia    Jurisprudencia @relation(fields: [jurisprudenciaId], references: [id], onDelete: Cascade)
+  embedding         Json?          // Vector embedding armazenado como JSON array
+  modelo            String         @default("text-embedding-3-small")
+  createdAt         DateTime       @default(now())
+
+  @@index([jurisprudenciaId])
+}
+
+// ==================== AUTOMACOES E IA ====================
+
+model Automacao {
+  id             String          @id @default(uuid())
+  workspaceId    String?
+  workspace      Workspace?      @relation(fields: [workspaceId], references: [id])
+  nome           String
+  tipo           TipoAutomacao
+  descricao      String?
+  configuracao   Json?
+  status         StatusAutomacao @default(ATIVA)
+  ultimoDisparo  DateTime?
+  proximoDisparo DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  logs           LogAutomacao[]
+
+  @@index([workspaceId])
+  @@index([tipo])
+  @@index([status])
+}
+
+model LogAutomacao {
+  id          String    @id @default(uuid())
+  automacaoId String
+  automacao   Automacao @relation(fields: [automacaoId], references: [id], onDelete: Cascade)
+  sucesso     Boolean
+  mensagem    String?
+  dados       Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([automacaoId])
+  @@index([createdAt])
+}
+
+model LogIA {
+  id            String   @id @default(uuid())
+  tipo          String
+  modelo        String
+  input         String
+  output        String?
+  tokensInput   Int?
+  tokensOutput  Int?
+  custoEstimado Decimal? @db.Decimal(10, 6)
+  latenciaMs    Int?
+  sucesso       Boolean  @default(true)
+  erro          String?
+  createdAt     DateTime @default(now())
+
+  @@index([tipo])
+  @@index([createdAt])
+}
+
+model ConfiguracaoIA {
+  id                String    @id @default(uuid())
+  workspaceId       String    @unique
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  modeloPrincipal   String    @default("gpt-4o")
+  modeloEmbedding   String    @default("text-embedding-3-small")
+  temperatura       Float     @default(0.3)
+  maxTokens         Int       @default(4000)
+  apiKey            String?
+  limiteUsoDiario   Int?
+  usoHoje           Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// ==================== AUDITORIA ====================
+
+model LogAuditoria {
+  id           String   @id @default(uuid())
+  usuarioId    String?
+  usuario      Usuario? @relation(fields: [usuarioId], references: [id])
+  acao         String
+  entidade     String
+  entidadeId   String?
+  dadosAntigos Json?
+  dadosNovos   Json?
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([acao])
+  @@index([entidade])
+  @@index([createdAt])
+}
+
+model Notificacao {
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  usuarioId   String
+  usuario     Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  titulo      String
+  mensagem    String
+  tipo        String
+  lida        Boolean    @default(false)
+  link        String?
+  createdAt   DateTime   @default(now())
+
+  @@index([workspaceId])
+  @@index([usuarioId])
+  @@index([lida])
+  @@index([createdAt])
+}
