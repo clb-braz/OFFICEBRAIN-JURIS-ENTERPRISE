@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: officebrain_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: apps/api/package-lock.json
+
+    - name: Install dependencies
+      run: |
+        cd apps/api
+        npm ci
+
+    - name: Generate Prisma Client
+      run: |
+        cd apps/api
+        npx prisma generate
+
+    - name: Run migrations
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/officebrain_test
+      run: |
+        cd apps/api
+        npx prisma migrate deploy
+
+    - name: Lint
+      run: |
+        cd apps/api
+        npm run lint || true
+
