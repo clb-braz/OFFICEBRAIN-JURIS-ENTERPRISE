@@ -1,0 +1,775 @@
+// ==================== EXTENSÕES PARA SISTEMA COMPLETO ====================
+// Este arquivo contém as extensões necessárias para o sistema completo
+// Integrar ao schema.prisma principal
+
+// ==================== ENUMS ADICIONAIS ====================
+
+enum TipoEventoAgenda {
+  REUNIAO
+  AUDIENCIA
+  VISITA_FORUM
+  PROTOCOLO
+  ANDAMENTO_INTERNO
+  REUNIAO_CLIENTE
+  VISTORIA
+  DILIGENCIA
+  CONSULTA
+  OUTROS
+}
+
+enum StatusEventoAgenda {
+  AGENDADO
+  CONFIRMADO
+  REALIZADO
+  CANCELADO
+  ADIADO
+}
+
+enum TipoPrazoDetalhado {
+  RECURSAL
+  MANIFESTACAO
+  CUMPRIMENTO
+  AUDIENCIA
+  PRESCRICAO
+  PRECLUSAO
+  CONTESTACAO
+  RESPOSTA
+  IMPUGNACAO
+  EMBARGOS
+  AGRAVO
+  APELACAO
+  OUTROS
+}
+
+enum NivelAlertaPrazo {
+  NORMAL
+  ATENCAO
+  URGENTE
+  CRITICO
+  EMERGENCIAL
+}
+
+enum OrigemPrazo {
+  MANUAL
+  IA_DECISAO
+  IA_DOCUMENTO
+  AUTOMATICO_CPC
+  SISTEMA_TRIBUNAL
+  OUTROS
+}
+
+enum TipoComunicacao {
+  EMAIL
+  WHATSAPP
+  SMS
+  LIGACAO
+  REUNIAO
+  PRESENCIAL
+}
+
+enum StatusComunicacao {
+  ENVIADA
+  RECEBIDA
+  LIDA
+  RESPONDIDA
+  FALHOU
+}
+
+enum TipoDocumentoVersao {
+  PETICAO
+  CONTRATO
+  PROCURACAO
+  DECISAO
+  SENTENCA
+  ACORDAO
+  DESPACHO
+  OUTROS
+}
+
+enum StatusCRM {
+  LEAD
+  PROSPECCAO
+  REUNIAO_AGENDADA
+  PROPOSTA_ENVIADA
+  NEGOCIACAO
+  CONTRATADO
+  PERDIDO
+  ARQUIVADO
+}
+
+enum OrigemLead {
+  INDICACAO
+  GOOGLE
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  SITE
+  TELEFONE
+  EMAIL
+  EVENTO
+  OUTROS
+}
+
+enum TipoAnaliseIA {
+  ANALISE_PROCESSO
+  IDENTIFICACAO_PRAZO
+  SUGESTAO_ESTRATEGIA
+  LEITURA_DECISAO
+  GERACAO_PECA
+  EXPLICACAO_JURISPRUDENCIA
+  LEITURA_CONTRATO
+  COMPARACAO_CLAUSULAS
+  PREVISAO_RESULTADO
+  OUTROS
+}
+
+// ==================== PRAZOS AVANÇADOS ====================
+
+model PrazoAvancado {
+  id              String            @id @default(uuid())
+  processoId      String
+  processo        Processo          @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  
+  // Tipo detalhado
+  tipo            TipoPrazoDetalhado
+  tipoOriginal    TipoPrazo        // Mantém compatibilidade
+  
+  // Dados do prazo
+  descricao       String
+  dataLimite      DateTime
+  dataCriacao     DateTime         @default(now())
+  dataCumprido    DateTime?
+  
+  // Origem
+  origem          OrigemPrazo       @default(MANUAL)
+  documentoId     String?           // Se foi criado por IA de um documento
+  documento       Documento?        @relation(fields: [documentoId], references: [id])
+  
+  // Responsável
+  responsavelId   String?
+  responsavel     Usuario?          @relation(fields: [responsavelId], references: [id])
+  
+  // Status e prioridade
+  status          StatusPrazo       @default(PENDENTE)
+  prioridade      PrioridadeTarefa  @default(MEDIA)
+  nivelAlerta     NivelAlertaPrazo @default(NORMAL)
+  
+  // Alertas enviados
+  alerta48hEnviado Boolean          @default(false)
+  alerta24hEnviado Boolean          @default(false)
+  alerta12hEnviado Boolean          @default(false)
+  alerta1hEnviado  Boolean          @default(false)
+  
+  // Dados extras
+  observacoes     String?
+  instrucoes      String?           // Instruções para cumprimento
+  linkRelacionado String?
+  
+  // IA
+  criadoPorIA     Boolean           @default(false)
+  confiancaIA     Float?            // 0-1, confiança da IA na criação
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relações
+  notificacoes    NotificacaoPrazo[]
+  historico       HistoricoPrazo[]
+
+  @@index([processoId])
+  @@index([dataLimite])
+  @@index([status])
+  @@index([nivelAlerta])
+  @@index([responsavelId])
+  @@index([tipo])
+  @@index([origem])
+  @@index([criadoPorIA])
+}
+
+model HistoricoPrazo {
+  id          String        @id @default(uuid())
+  prazoId     String
+  prazo       PrazoAvancado @relation(fields: [prazoId], references: [id], onDelete: Cascade)
+  acao        String        // "CRIADO", "ATUALIZADO", "CUMPRIDO", "ALERTA_ENVIADO"
+  descricao   String?
+  usuarioId   String?
+  usuario     Usuario?      @relation(fields: [usuarioId], references: [id])
+  dadosAntigos Json?
+  dadosNovos  Json?
+  createdAt   DateTime      @default(now())
+
+  @@index([prazoId])
+  @@index([createdAt])
+}
+
+model NotificacaoPrazo {
+  id          String        @id @default(uuid())
+  prazoId     String
+  prazo       PrazoAvancado @relation(fields: [prazoId], references: [id], onDelete: Cascade)
+  tipo        String        // "EMAIL", "WHATSAPP", "SMS", "WEB"
+  enviada     Boolean       @default(false)
+  enviadaEm   DateTime?
+  lida        Boolean       @default(false)
+  lidaEm      DateTime?
+  erro        String?
+  createdAt   DateTime      @default(now())
+
+  @@index([prazoId])
+  @@index([enviada])
+}
+
+// ==================== AGENDA COMPLETA ====================
+
+model EventoAgenda {
+  id              String            @id @default(uuid())
+  workspaceId     String?
+  workspace        Workspace?        @relation(fields: [workspaceId], references: [id])
+  
+  // Tipo e dados básicos
+  tipo            TipoEventoAgenda
+  titulo          String
+  descricao       String?
+  
+  // Datas e horários
+  dataInicio      DateTime
+  dataFim         DateTime?
+  duracaoMinutos  Int?
+  horario         String?
+  
+  // Localização
+  local           String?
+  endereco        String?
+  linkVirtual     String?
+  sala            String?
+  
+  // Relações
+  processoId      String?
+  processo        Processo?          @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  clienteId       String?
+  cliente         Cliente?           @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  
+  // Participantes
+  responsavelId   String?
+  responsavel     Usuario?           @relation("ResponsavelEvento", fields: [responsavelId], references: [id])
+  participantes   ParticipanteEvento[]
+  
+  // Status
+  status          StatusEventoAgenda @default(AGENDADO)
+  
+  // Dados extras
+  observacoes     String?
+  resultado       String?
+  documentos      String[]           // IDs de documentos relacionados
+  
+  // IA
+  criadoPorIA     Boolean            @default(false)
+  previsaoIA      String?           // Previsão da IA sobre o evento
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relações
+  lembretes       LembreteEvento[]
+  notificacoes    NotificacaoEvento[]
+
+  @@index([workspaceId])
+  @@index([dataInicio])
+  @@index([status])
+  @@index([processoId])
+  @@index([clienteId])
+  @@index([responsavelId])
+  @@index([tipo])
+}
+
+model ParticipanteEvento {
+  id          String        @id @default(uuid())
+  eventoId    String
+  evento      EventoAgenda @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  usuarioId   String?
+  usuario     Usuario?      @relation(fields: [usuarioId], references: [id])
+  nomeExterno String?       // Para participantes externos
+  email       String?
+  telefone    String?
+  confirmado  Boolean       @default(false)
+  presente    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+
+  @@unique([eventoId, usuarioId])
+  @@index([eventoId])
+  @@index([usuarioId])
+}
+
+model LembreteEvento {
+  id          String        @id @default(uuid())
+  eventoId    String
+  evento      EventoAgenda  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  tipo        String        // "1_DIA", "1_HORA", "30_MIN", "IMEDIATO"
+  enviado     Boolean       @default(false)
+  enviadoEm   DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([eventoId])
+  @@index([enviado])
+}
+
+model NotificacaoEvento {
+  id          String        @id @default(uuid())
+  eventoId    String
+  evento      EventoAgenda @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  tipo        String        // "EMAIL", "WHATSAPP", "SMS", "WEB"
+  enviada     Boolean       @default(false)
+  enviadaEm   DateTime?
+  lida        Boolean       @default(false)
+  erro        String?
+  createdAt   DateTime      @default(now())
+
+  @@index([eventoId])
+}
+
+// ==================== CRM JURÍDICO ====================
+
+model LeadCRM {
+  id              String        @id @default(uuid())
+  workspaceId     String?
+  workspace       Workspace?    @relation(fields: [workspaceId], references: [id])
+  
+  // Dados básicos
+  nome            String
+  email           String?
+  telefone        String?
+  whatsapp        String?
+  
+  // Origem
+  origem          OrigemLead
+  origemDetalhada String?       // Ex: "Google Ads - Busca 'advogado trabalhista'"
+  
+  // Status no funil
+  status          StatusCRM     @default(LEAD)
+  
+  // Classificação
+  areaInteresse  AreaDireito?
+  assunto        String?
+  
+  // Dados adicionais
+  observacoes     String?
+  tags            String[]
+  
+  // Conversão
+  convertidoEmCliente Boolean   @default(false)
+  clienteId       String?
+  cliente         Cliente?      @relation(fields: [clienteId], references: [id])
+  
+  // Responsável
+  responsavelId   String?
+  responsavel     Usuario?      @relation("ResponsavelLead", fields: [responsavelId], references: [id])
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relações
+  interacoes      InteracaoCRM[]
+  tarefas         TarefaCRM[]
+  documentos      DocumentoCRM[]
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([origem])
+  @@index([responsavelId])
+  @@index([convertidoEmCliente])
+}
+
+model InteracaoCRM {
+  id          String    @id @default(uuid())
+  leadId      String
+  lead        LeadCRM   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  
+  tipo        TipoComunicacao
+  descricao   String
+  resultado   String?
+  
+  usuarioId   String?
+  usuario     Usuario?   @relation(fields: [usuarioId], references: [id])
+  
+  data        DateTime   @default(now())
+  duracaoMinutos Int?
+  
+  // Dados extras
+  anotacoes   String?
+  proximaAcao String?
+  proximaData DateTime?
+  
+  createdAt   DateTime  @default(now())
+
+  @@index([leadId])
+  @@index([data])
+  @@index([tipo])
+}
+
+model TarefaCRM {
+  id          String    @id @default(uuid())
+  leadId      String
+  lead        LeadCRM   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  
+  titulo      String
+  descricao   String?
+  concluida   Boolean   @default(false)
+  dataLimite  DateTime?
+  
+  responsavelId String?
+  responsavel   Usuario? @relation("ResponsavelTarefaCRM", fields: [responsavelId], references: [id])
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([concluida])
+}
+
+model DocumentoCRM {
+  id          String    @id @default(uuid())
+  leadId      String
+  lead        LeadCRM   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  documentoId String
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
+
+  @@unique([leadId, documentoId])
+  @@index([leadId])
+}
+
+// ==================== COMUNICAÇÃO E MENSAGENS ====================
+
+model MensagemCliente {
+  id          String            @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace?        @relation(fields: [workspaceId], references: [id])
+  
+  // Relações
+  clienteId   String
+  cliente     Cliente            @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  processoId  String?
+  processo    Processo?          @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  
+  // Dados da mensagem
+  tipo        TipoComunicacao
+  canal       String            // "WHATSAPP", "EMAIL", "SMS", "SISTEMA"
+  assunto     String?
+  conteudo    String
+  anexos      String[]           // URLs de anexos
+  
+  // Status
+  status      StatusComunicacao @default(ENVIADA)
+  automatica  Boolean           @default(false) // Se foi enviada automaticamente
+  
+  // Remetente/Destinatário
+  remetenteId String?
+  remetente   Usuario?          @relation("RemetenteMensagem", fields: [remetenteId], references: [id])
+  destinatario String?           // Email ou telefone do cliente
+  
+  // Respostas
+  respostaParaId String?         // ID da mensagem que está respondendo
+  respostaPara   MensagemCliente? @relation("RespostasMensagem", fields: [respostaParaId], references: [id])
+  respostas      MensagemCliente[] @relation("RespostasMensagem")
+  
+  // IA
+  geradaPorIA Boolean           @default(false)
+  analisadaPorIA Boolean        @default(false)
+  
+  // Timestamps
+  enviadaEm   DateTime?
+  lidaEm      DateTime?
+  respondidaEm DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([workspaceId])
+  @@index([clienteId])
+  @@index([processoId])
+  @@index([tipo])
+  @@index([status])
+  @@index([automatica])
+  @@index([enviadaEm])
+}
+
+model TemplateMensagem {
+  id          String            @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace?        @relation(fields: [workspaceId], references: [id])
+  
+  nome        String
+  tipo        TipoComunicacao
+  assunto     String?
+  conteudo    String
+  
+  // Variáveis disponíveis: {{cliente.nome}}, {{processo.numero}}, etc
+  variaveis   String[]
+  
+  ativo       Boolean           @default(true)
+  
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([workspaceId])
+  @@index([tipo])
+  @@index([ativo])
+}
+
+// ==================== DOCUMENTOS AVANÇADOS (VERSIONAMENTO GIT-LIKE) ====================
+
+model VersaoDocumentoAvancada {
+  id              String        @id @default(uuid())
+  documentoId     String
+  documento       Documento     @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  
+  versao          Int
+  versaoAnteriorId String?      // Referência à versão anterior (como Git)
+  versaoAnterior  VersaoDocumentoAvancada? @relation("VersoesDocumento", fields: [versaoAnteriorId], references: [id])
+  versoesFilhas   VersaoDocumentoAvancada[] @relation("VersoesDocumento")
+  
+  // Dados da versão
+  arquivoUrl      String
+  arquivoPath     String?
+  hashArquivo     String?       // Hash para verificar integridade
+  tamanhoBytes    Int?
+  
+  // Metadados
+  mensagemCommit  String?       // Mensagem de commit (como Git)
+  autorId         String?
+  autor           Usuario?      @relation(fields: [autorId], references: [id])
+  
+  // Diferenças
+  diffTexto       String?       // Diferenças em texto
+  diffJson        Json?         // Diferenças estruturadas
+  
+  // Tags e branches (conceito Git)
+  tags            String[]
+  branch          String?       @default("main")
+  
+  // Status
+  ativa           Boolean       @default(false) // Apenas uma versão ativa por documento
+  
+  createdAt       DateTime      @default(now())
+
+  @@unique([documentoId, versao])
+  @@index([documentoId])
+  @@index([versaoAnteriorId])
+  @@index([ativa])
+  @@index([branch])
+}
+
+model ComparacaoDocumento {
+  id                String                  @id @default(uuid())
+  versao1Id         String
+  versao1           VersaoDocumentoAvancada @relation("ComparacaoVersao1", fields: [versao1Id], references: [id])
+  versao2Id         String
+  versao2           VersaoDocumentoAvancada @relation("ComparacaoVersao2", fields: [versao2Id], references: [id])
+  
+  diferencas        Json                    // Diferenças detalhadas
+  resumo            String?
+  
+  criadoPorId       String?
+  criadoPor         Usuario?                 @relation(fields: [criadoPorId], references: [id])
+  
+  createdAt         DateTime                 @default(now())
+
+  @@unique([versao1Id, versao2Id])
+  @@index([versao1Id])
+  @@index([versao2Id])
+}
+
+// ==================== IA AVANÇADA ====================
+
+model ConversaIA {
+  id          String        @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace?    @relation(fields: [workspaceId], references: [id])
+  
+  usuarioId   String?
+  usuario     Usuario?      @relation(fields: [usuarioId], references: [id])
+  
+  titulo      String?
+  contexto    String?       // Contexto da conversa (processo, cliente, etc)
+  processoId  String?
+  processo    Processo?     @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  
+  ativa       Boolean       @default(true)
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  mensagens   MensagemIA[]
+
+  @@index([workspaceId])
+  @@index([usuarioId])
+  @@index([processoId])
+  @@index([ativa])
+}
+
+model MensagemIA {
+  id          String        @id @default(uuid())
+  conversaId  String
+  conversa    ConversaIA    @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  
+  role        String        // "user" ou "assistant"
+  conteudo    String
+  tokens      Int?
+  
+  // Referências
+  artigosCitados String[]   // IDs de artigos citados
+  jurisprudenciasCitadas String[] // IDs de jurisprudências citadas
+  
+  // Metadados
+  modelo      String?
+  temperatura Float?
+  
+  createdAt   DateTime      @default(now())
+
+  @@index([conversaId])
+  @@index([createdAt])
+}
+
+model AnaliseIA {
+  id          String        @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace?    @relation(fields: [workspaceId], references: [id])
+  
+  tipo        TipoAnaliseIA
+  processoId  String?
+  processo    Processo?     @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  documentoId String?
+  documento   Documento?    @relation(fields: [documentoId], references: [id], onDelete: SetNull)
+  
+  // Resultado
+  resultado   Json          // Resultado estruturado da análise
+  resumo      String?
+  confianca   Float?        // 0-1
+  
+  // Sugestões
+  sugestoes   String[]
+  alertas     String[]
+  
+  // Metadados
+  modelo      String?
+  tokensUsados Int?
+  custo       Decimal?      @db.Decimal(10, 6)
+  
+  usuarioId   String?
+  usuario     Usuario?      @relation(fields: [usuarioId], references: [id])
+  
+  createdAt   DateTime      @default(now())
+
+  @@index([workspaceId])
+  @@index([tipo])
+  @@index([processoId])
+  @@index([documentoId])
+  @@index([createdAt])
+}
+
+// ==================== ADMINISTRAÇÃO ====================
+
+model RankingProdutividade {
+  id          String    @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  
+  periodo     String    // "MENSAL", "TRIMESTRAL", "ANUAL"
+  dataInicio  DateTime
+  dataFim     DateTime
+  
+  usuarioId   String
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id])
+  
+  // Métricas
+  processosAtendidos Int       @default(0)
+  prazosCumpridos     Int       @default(0)
+  prazosPerdidos      Int       @default(0)
+  honorariosGerados   Decimal   @db.Decimal(15, 2) @default(0)
+  clientesAtendidos   Int       @default(0)
+  tarefasConcluidas   Int       @default(0)
+  
+  // Score
+  scoreProdutividade  Float     @default(0)
+  posicaoRanking      Int?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, periodo, dataInicio, usuarioId])
+  @@index([workspaceId])
+  @@index([usuarioId])
+  @@index([periodo])
+  @@index([scoreProdutividade])
+}
+
+model MetaEscritorio {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  nome        String
+  descricao   String?
+  tipo        String    // "RECEITA", "PROCESSOS", "CLIENTES", "PRAZOS"
+  
+  valorMeta   Decimal?  @db.Decimal(15, 2)
+  valorAtual  Decimal   @db.Decimal(15, 2) @default(0)
+  
+  periodo     String    // "MENSAL", "TRIMESTRAL", "ANUAL"
+  dataInicio  DateTime
+  dataFim     DateTime
+  
+  ativa       Boolean   @default(true)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
+  @@index([tipo])
+  @@index([ativa])
+  @@index([dataFim])
+}
+
+// ==================== RELAÇÕES ADICIONAIS ====================
+
+// Adicionar ao model Processo
+// prazoAvancados    PrazoAvancado[]
+// eventos           EventoAgenda[]
+// conversasIA       ConversaIA[]
+// analisesIA        AnaliseIA[]
+// mensagens         MensagemCliente[]
+
+// Adicionar ao model Cliente
+// leads             LeadCRM[]
+// mensagens         MensagemCliente[]
+// eventos           EventoAgenda[]
+
+// Adicionar ao model Usuario
+// eventosResponsavel EventoAgenda[] @relation("ResponsavelEvento")
+// leadsResponsavel   LeadCRM[] @relation("ResponsavelLead")
+// tarefasCRM         TarefaCRM[] @relation("ResponsavelTarefaCRM")
+// mensagensRemetente MensagemCliente[] @relation("RemetenteMensagem")
+// conversasIA        ConversaIA[]
+// analisesIA         AnaliseIA[]
+// ranking            RankingProdutividade[]
+// historicoPrazos    HistoricoPrazo[]
+// versoesDocumento   VersaoDocumentoAvancada[]
+// comparacoesDoc     ComparacaoDocumento[]
+
+// Adicionar ao model Workspace
+// prazoAvancados     PrazoAvancado[]
+// eventosAgenda      EventoAgenda[]
+// leadsCRM           LeadCRM[]
+// mensagens          MensagemCliente[]
+// templatesMensagem   TemplateMensagem[]
+// conversasIA        ConversaIA[]
+// analisesIA         AnaliseIA[]
+// ranking            RankingProdutividade[]
+// metas              MetaEscritorio[]
+
+// Adicionar ao model Documento
+// prazoAvancados     PrazoAvancado[]
+// versoesAvancadas   VersaoDocumentoAvancada[]
+// comparacoes        ComparacaoDocumento[]
+// analisesIA         AnaliseIA[]
+// documentosCRM      DocumentoCRM[]
+

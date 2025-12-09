@@ -4,9 +4,11 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { DocumentsService } from './documents.service';
 import { DocumentsController } from './documents.controller';
+import { OcrModule } from '../ocr/ocr.module';
 
 @Module({
   imports: [
+    OcrModule,
     MulterModule.register({
       storage: diskStorage({
         destination: join(process.cwd(), 'uploads'),

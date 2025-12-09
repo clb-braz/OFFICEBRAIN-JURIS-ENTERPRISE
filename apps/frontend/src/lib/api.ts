@@ -1,16 +1,37 @@
+import { getToken } from './auth';
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? getToken() : null;
   const res = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
+    cache: options?.cache ?? 'no-store',
   });
   
   if (!res.ok) {
-    throw new Error(`API Error: ${res.status}`);
+    let errorMessage = `Erro ${res.status}`;
+    try {
+      const errorData = await res.json();
+      errorMessage = errorData.message || errorData.error || errorMessage;
+    } catch {
+      // Se não conseguir parsear JSON, usa mensagem padrão
+      if (res.status === 401) {
+        errorMessage = 'Credenciais inválidas. Verifique seu email e senha.';
+      } else if (res.status === 404) {
+        errorMessage = 'Recurso não encontrado';
+      } else if (res.status >= 500) {
+        errorMessage = 'Erro no servidor. Tente novamente mais tarde.';
+      }
+    }
+    const error = new Error(errorMessage);
+    (error as any).status = res.status;
+    throw error;
   }
   
   return res.json();
@@ -51,6 +72,14 @@ export const api = {
   // Documentos
   getDocuments: (params?: string) => fetchAPI(`/documents${params ? `?${params}` : ''}`),
   uploadDocument: (formData: FormData) => fetch(`${API_URL}/documents/upload`, { method: 'POST', body: formData }),
+
+  // Leads públicos
+  createPublicLead: (data: any) => fetchAPI('/public/leads', { method: 'POST', body: JSON.stringify(data) }),
+  
+  // Auth
+  login: (email: string, senha: string) =>
+    fetchAPI('/auth/login', { method: 'POST', body: JSON.stringify({ email, senha }) }),
+  me: () => fetchAPI('/auth/me'),
   
   // Usuários
   getUsers: () => fetchAPI('/users'),

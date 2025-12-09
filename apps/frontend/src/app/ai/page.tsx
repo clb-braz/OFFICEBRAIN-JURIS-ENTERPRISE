@@ -42,12 +42,12 @@ export default function AIPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-dark-950 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="glass-card border-b border-dark-700/50 px-6 py-4">
+      <header className="glass-card border-b border-border/50 px-6 py-4">
         <div className="flex items-center gap-4">
-          <Link href="/" className="p-2 rounded-lg hover:bg-dark-800 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-dark-400" />
+          <Link href="/" className="p-2 rounded-lg hover:bg-muted transition-colors">
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </Link>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
@@ -55,7 +55,7 @@ export default function AIPage() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white">Assistente Jurídico IA</h1>
-              <p className="text-xs text-dark-400">Powered by Claude/GPT</p>
+              <p className="text-xs text-muted-foreground">Powered by Claude/GPT</p>
             </div>
           </div>
         </div>
@@ -96,13 +96,13 @@ export default function AIPage() {
       {/* Suggestions */}
       {chat.length <= 1 && (
         <div className="px-6 pb-4">
-          <p className="text-sm text-dark-400 mb-3">Sugestões:</p>
+          <p className="text-sm text-muted-foreground mb-3">Sugestões:</p>
           <div className="flex flex-wrap gap-2">
             {suggestions.map((s, idx) => (
               <button
                 key={idx}
                 onClick={() => setMessage(s.text)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-dark-800/50 border border-dark-700 hover:border-violet-500/50 transition-colors text-sm text-dark-300 hover:text-white"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 border border-border hover:border-violet-500/50 transition-colors text-sm text-muted-foreground hover:text-white"
               >
                 <s.icon className="w-4 h-4" />
                 {s.text}
@@ -113,7 +113,7 @@ export default function AIPage() {
       )}
 
       {/* Input */}
-      <div className="glass-card border-t border-dark-700/50 p-4">
+      <div className="glass-card border-t border-border/50 p-4">
         <div className="flex items-center gap-3">
           <input
             type="text"
@@ -121,7 +121,7 @@ export default function AIPage() {
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
             placeholder="Digite sua mensagem..."
-            className="flex-1 px-4 py-3 rounded-xl bg-dark-800/50 border border-dark-700 focus:border-violet-500 outline-none transition-all"
+            className="flex-1 px-4 py-3 rounded-xl bg-muted/50 border border-border focus:border-violet-500 outline-none transition-all"
           />
           <button
             onClick={sendMessage}

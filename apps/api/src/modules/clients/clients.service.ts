@@ -1,11 +1,36 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CPFValidator, CNPJValidator } from '../../common/utils/cpf-cnpj-validator';
 
 @Injectable()
 export class ClientsService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: any) {
+    // Valida CPF/CNPJ
+    const cleanCpfCnpj = data.cpfCnpj.replace(/[^\d]/g, '');
+    
+    if (data.tipo === 'FISICA') {
+      if (!CPFValidator.validate(cleanCpfCnpj)) {
+        throw new BadRequestException('CPF inválido');
+      }
+      data.cpfCnpj = CPFValidator.format(cleanCpfCnpj);
+    } else {
+      if (!CNPJValidator.validate(cleanCpfCnpj)) {
+        throw new BadRequestException('CNPJ inválido');
+      }
+      data.cpfCnpj = CNPJValidator.format(cleanCpfCnpj);
+    }
+
+    // Verifica se já existe
+    const existing = await this.prisma.cliente.findUnique({
+      where: { cpfCnpj: data.cpfCnpj },
+    });
+
+    if (existing) {
+      throw new ConflictException('Cliente com este CPF/CNPJ já existe');
+    }
+
     return this.prisma.cliente.create({
       data: {
         tipo: data.tipo,

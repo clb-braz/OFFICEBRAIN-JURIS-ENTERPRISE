@@ -7,6 +7,7 @@ import {
   FileSpreadsheet, Trash2, Download, Eye, Filter, Calendar,
   FolderOpen, X
 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 const API_URL = 'http://localhost:3001/api';
 
@@ -98,10 +99,16 @@ export default function DocumentsPage() {
     }
   };
 
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
+
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este documento?')) return;
+    setDeleteDialog({ open: true, id });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.id) return;
     try {
-      await fetch(`${API_URL}/documents/${id}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/documents/${deleteDialog.id}`, { method: 'DELETE' });
       fetchDocuments();
     } catch (err) {
       console.error(err);
@@ -122,16 +129,16 @@ export default function DocumentsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-dark-950 p-4 lg:p-6">
+    <div className="min-h-screen bg-background p-4 lg:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/" className="p-2 rounded-lg hover:bg-dark-800 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-dark-400" />
+          <Link href="/" className="p-2 rounded-lg hover:bg-muted transition-colors">
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </Link>
           <div>
             <h1 className="text-xl font-bold text-white">Documentos</h1>
-            <p className="text-dark-400 text-sm">{documents.length} arquivos</p>
+            <p className="text-muted-foreground text-sm">{documents.length} arquivos</p>
           </div>
         </div>
         <button 
@@ -145,19 +152,19 @@ export default function DocumentsPage() {
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Buscar por título ou descrição..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-dark-900 border border-dark-800 text-sm focus:border-blue-500 outline-none"
+            className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-card border border-border text-sm focus:border-blue-500 outline-none"
           />
         </div>
         <select
           value={categoriaFilter}
           onChange={(e) => setCategoriaFilter(e.target.value)}
-          className="px-3 py-2.5 rounded-lg bg-dark-900 border border-dark-800 text-sm outline-none min-w-[180px]"
+          className="px-3 py-2.5 rounded-lg bg-card border border-border text-sm outline-none min-w-[180px]"
         >
           <option value="">Todas as Categorias</option>
           {CATEGORIAS.map(cat => (
@@ -168,12 +175,12 @@ export default function DocumentsPage() {
 
       {/* Lista de Documentos */}
       {loading ? (
-        <div className="text-center py-12 text-dark-400">Carregando...</div>
+        <div className="text-center py-12 text-muted-foreground">Carregando...</div>
       ) : documents.length === 0 ? (
         <div className="text-center py-16">
           <FolderOpen className="w-20 h-20 text-dark-700 mx-auto mb-4" />
-          <p className="text-dark-400 text-lg mb-2">Nenhum documento encontrado</p>
-          <p className="text-dark-500 text-sm mb-4">Envie seu primeiro documento para começar</p>
+          <p className="text-muted-foreground text-lg mb-2">Nenhum documento encontrado</p>
+          <p className="text-muted-foreground text-sm mb-4">Envie seu primeiro documento para começar</p>
           <button 
             onClick={() => setShowUploadModal(true)}
             className="text-blue-400 hover:text-blue-300 text-sm font-medium"
@@ -184,15 +191,15 @@ export default function DocumentsPage() {
       ) : (
         <div className="grid gap-3">
           {documents.map((doc) => (
-            <div key={doc.id} className="bg-dark-900 rounded-xl p-4 border border-dark-800 hover:border-dark-700 transition-colors">
+            <div key={doc.id} className="bg-card rounded-xl p-4 border border-border hover:border-border transition-colors">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-dark-800 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
                   {getFileIcon(doc.tipoArquivo)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-white truncate">{doc.titulo}</h3>
-                  <div className="flex items-center gap-3 text-sm text-dark-400">
-                    <span className="px-2 py-0.5 rounded bg-dark-800 text-xs">
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <span className="px-2 py-0.5 rounded bg-muted text-xs">
                       {CATEGORIA_LABELS[doc.categoria] || doc.categoria}
                     </span>
                     <span>{formatFileSize(doc.tamanho)}</span>
@@ -208,15 +215,15 @@ export default function DocumentsPage() {
                   {doc.caminhoArquivo && (
                     <a
                       href={`${API_URL}/documents/download/${doc.id}`}
-                      className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
+                      className="p-2 rounded-lg hover:bg-muted transition-colors"
                       title="Baixar"
                     >
-                      <Download className="w-4 h-4 text-dark-400" />
+                      <Download className="w-4 h-4 text-muted-foreground" />
                     </a>
                   )}
                   <button
                     onClick={() => handleDelete(doc.id)}
-                    className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
+                    className="p-2 rounded-lg hover:bg-muted transition-colors"
                     title="Excluir"
                   >
                     <Trash2 className="w-4 h-4 text-red-400" />
@@ -231,11 +238,11 @@ export default function DocumentsPage() {
       {/* Modal de Upload */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-900 rounded-xl w-full max-w-md border border-dark-800">
-            <div className="flex items-center justify-between p-4 border-b border-dark-800">
+          <div className="bg-card rounded-xl w-full max-w-md border border-border">
+            <div className="flex items-center justify-between p-4 border-b border-border">
               <h2 className="text-lg font-semibold text-white">Enviar Documento</h2>
-              <button onClick={() => setShowUploadModal(false)} className="p-1 rounded hover:bg-dark-800">
-                <X className="w-5 h-5 text-dark-400" />
+              <button onClick={() => setShowUploadModal(false)} className="p-1 rounded hover:bg-muted">
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
             <form onSubmit={handleUpload} className="p-4 space-y-4">
@@ -243,7 +250,7 @@ export default function DocumentsPage() {
               <div
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                  selectedFile ? 'border-blue-500 bg-blue-500/10' : 'border-dark-700 hover:border-dark-600'
+                  selectedFile ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:border-border'
                 }`}
               >
                 <input
@@ -258,35 +265,35 @@ export default function DocumentsPage() {
                     <File className="w-8 h-8 text-blue-400" />
                     <div className="text-left">
                       <p className="text-white font-medium">{selectedFile.name}</p>
-                      <p className="text-sm text-dark-400">{formatFileSize(selectedFile.size)}</p>
+                      <p className="text-sm text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <Upload className="w-10 h-10 text-dark-500 mx-auto mb-2" />
-                    <p className="text-dark-300">Clique para selecionar um arquivo</p>
-                    <p className="text-xs text-dark-500 mt-1">PDF, DOC, DOCX, XLS, XLSX, Imagens</p>
+                    <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-muted-foreground">Clique para selecionar um arquivo</p>
+                    <p className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX, XLS, XLSX, Imagens</p>
                   </>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm text-dark-300 mb-1">Título *</label>
+                <label className="block text-sm text-muted-foreground mb-1">Título *</label>
                 <input
                   type="text"
                   required
                   value={uploadForm.titulo}
                   onChange={(e) => setUploadForm({ ...uploadForm, titulo: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-dark-800 border border-dark-700 text-sm outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-dark-300 mb-1">Categoria</label>
+                <label className="block text-sm text-muted-foreground mb-1">Categoria</label>
                 <select
                   value={uploadForm.categoria}
                   onChange={(e) => setUploadForm({ ...uploadForm, categoria: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-dark-800 border border-dark-700 text-sm outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm outline-none focus:border-blue-500"
                 >
                   {CATEGORIAS.map(cat => (
                     <option key={cat} value={cat}>{CATEGORIA_LABELS[cat]}</option>
@@ -295,12 +302,12 @@ export default function DocumentsPage() {
               </div>
 
               <div>
-                <label className="block text-sm text-dark-300 mb-1">Descrição</label>
+                <label className="block text-sm text-muted-foreground mb-1">Descrição</label>
                 <textarea
                   rows={2}
                   value={uploadForm.descricao}
                   onChange={(e) => setUploadForm({ ...uploadForm, descricao: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-dark-800 border border-dark-700 text-sm outline-none focus:border-blue-500 resize-none"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm outline-none focus:border-blue-500 resize-none"
                 />
               </div>
 
@@ -308,7 +315,7 @@ export default function DocumentsPage() {
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="flex-1 px-4 py-2 rounded-lg border border-dark-700 text-dark-300 hover:bg-dark-800 transition-colors"
+                  className="flex-1 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
                 >
                   Cancelar
                 </button>
@@ -324,6 +331,17 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ open, id: null })}
+        onConfirm={confirmDelete}
+        title="Excluir Documento"
+        description="Tem certeza que deseja excluir este documento? Esta ação não pode ser desfeita."
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="destructive"
+      />
     </div>
   );
 }

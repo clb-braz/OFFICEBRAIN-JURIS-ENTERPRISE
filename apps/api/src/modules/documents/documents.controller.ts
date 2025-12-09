@@ -15,21 +15,26 @@ export class DocumentsController {
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
-    @UploadedFile() file: any,
-    @Body() body: { titulo?: string; nome?: string; tipo?: string; descricao?: string; processoId?: string; clienteId?: string }
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { titulo?: string; nome?: string; tipo?: string; descricao?: string; processoId?: string; clienteId?: string; workspaceId?: string; uploadPorId?: string }
   ) {
-    const fileName = file?.filename || 'documento';
-    return this.documentsService.create({
-      nome: body.titulo || body.nome || file?.originalname || 'Documento',
-      tipo: body.tipo,
+    if (!file) {
+      return { error: 'Nenhum arquivo enviado' };
+    }
+    return this.documentsService.create(file, {
+      nome: body.titulo || body.nome || file.originalname || 'Documento',
+      tipo: body.tipo || 'OUTROS',
       descricao: body.descricao,
-      arquivoUrl: `/uploads/${fileName}`,
-      arquivoPath: fileName,
-      tamanhoBytes: file?.size,
-      mimeType: file?.mimetype,
       processoId: body.processoId,
       clienteId: body.clienteId,
+      workspaceId: body.workspaceId,
+      uploadPorId: body.uploadPorId,
     });
+  }
+
+  @Post(':id/reprocess-ocr')
+  async reprocessOcr(@Param('id') id: string) {
+    return this.documentsService.reprocessOcr(id);
   }
 
   @Get()

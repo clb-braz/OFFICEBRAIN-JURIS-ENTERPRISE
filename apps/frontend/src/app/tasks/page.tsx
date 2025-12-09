@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ListTodo, Plus, ArrowLeft, Clock, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 const API_URL = 'http://localhost:3001/api';
 
 const COLUMNS = [
-  { id: 'A_FAZER', name: 'A Fazer', color: 'border-dark-600' },
+  { id: 'A_FAZER', name: 'A Fazer', color: 'border-border' },
   { id: 'EM_ANDAMENTO', name: 'Em Andamento', color: 'border-blue-500' },
   { id: 'AGUARDANDO_CLIENTE', name: 'Aguardando', color: 'border-amber-500' },
   { id: 'CONCLUIDO', name: 'Concluído', color: 'border-emerald-500' },
@@ -18,6 +19,7 @@ const PRIORIDADES = ['BAIXA', 'MEDIA', 'ALTA', 'URGENTE'];
 export default function TasksPage() {
   const [kanban, setKanban] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ titulo: '', descricao: '', status: 'A_FAZER', prioridade: 'MEDIA' });
 
@@ -53,9 +55,17 @@ export default function TasksPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Excluir esta tarefa?')) return;
-    await fetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' });
-    fetchData();
+    setDeleteDialog({ open: true, id });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.id) return;
+    try {
+      await fetch(`${API_URL}/tasks/${deleteDialog.id}`, { method: 'DELETE' });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
@@ -68,20 +78,20 @@ export default function TasksPage() {
   };
 
   const prioridadeColors: Record<string, string> = {
-    BAIXA: 'bg-dark-600 text-dark-300',
+    BAIXA: 'bg-dark-600 text-muted-foreground',
     MEDIA: 'bg-blue-500/20 text-blue-400',
     ALTA: 'bg-amber-500/20 text-amber-400',
     URGENTE: 'bg-red-500/20 text-red-400',
   };
 
   return (
-    <div className="min-h-screen bg-dark-950 p-4 lg:p-6">
+    <div className="min-h-screen bg-background p-4 lg:p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/" className="p-2 rounded-lg hover:bg-dark-800"><ArrowLeft className="w-5 h-5 text-dark-400" /></Link>
+          <Link href="/" className="p-2 rounded-lg hover:bg-muted"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
           <div>
             <h1 className="text-xl font-bold text-white">Tarefas</h1>
-            <p className="text-dark-400 text-sm">Kanban de atividades</p>
+            <p className="text-muted-foreground text-sm">Kanban de atividades</p>
           </div>
         </div>
         <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium">
@@ -90,29 +100,29 @@ export default function TasksPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-dark-400">Carregando...</div>
+        <div className="text-center py-12 text-muted-foreground">Carregando...</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {COLUMNS.map((col) => (
-            <div key={col.id} className={`bg-dark-900 rounded-xl border-t-2 ${col.color}`}>
-              <div className="p-3 border-b border-dark-800">
+            <div key={col.id} className={`bg-card rounded-xl border-t-2 ${col.color}`}>
+              <div className="p-3 border-b border-border">
                 <h3 className="font-medium text-white flex items-center justify-between">
                   {col.name}
-                  <span className="text-xs bg-dark-800 px-2 py-0.5 rounded-full text-dark-400">
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
                     {kanban[col.id]?.length || 0}
                   </span>
                 </h3>
               </div>
               <div className="p-3 space-y-3 min-h-[200px]">
                 {(kanban[col.id] || []).map((task) => (
-                  <div key={task.id} className="bg-dark-800 rounded-lg p-3 border border-dark-700 hover:border-dark-600 transition-colors">
+                  <div key={task.id} className="bg-muted rounded-lg p-3 border border-border hover:border-border transition-colors">
                     <div className="flex items-start justify-between mb-2">
                       <h4 className="text-sm font-medium text-white">{task.titulo}</h4>
-                      <button onClick={() => handleDelete(task.id)} className="p-1 rounded hover:bg-dark-700">
+                      <button onClick={() => handleDelete(task.id)} className="p-1 rounded hover:bg-muted/50">
                         <Trash2 className="w-3.5 h-3.5 text-red-400" />
                       </button>
                     </div>
-                    {task.descricao && <p className="text-xs text-dark-400 mb-2 line-clamp-2">{task.descricao}</p>}
+                    {task.descricao && <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{task.descricao}</p>}
                     <div className="flex items-center justify-between">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${prioridadeColors[task.prioridade]}`}>
                         {task.prioridade}
@@ -120,7 +130,7 @@ export default function TasksPage() {
                       <select
                         value={task.status}
                         onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                        className="text-xs bg-dark-700 border-none rounded px-1 py-0.5 text-dark-300 outline-none"
+                        className="text-xs bg-muted/50 border-none rounded px-1 py-0.5 text-muted-foreground outline-none"
                       >
                         {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
@@ -128,7 +138,7 @@ export default function TasksPage() {
                   </div>
                 ))}
                 {(!kanban[col.id] || kanban[col.id].length === 0) && (
-                  <div className="text-center py-8 text-dark-500 text-sm">
+                  <div className="text-center py-8 text-muted-foreground text-sm">
                     Nenhuma tarefa
                   </div>
                 )}
@@ -141,41 +151,52 @@ export default function TasksPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-900 rounded-xl w-full max-w-md border border-dark-800">
-            <div className="p-4 border-b border-dark-800">
+          <div className="bg-card rounded-xl w-full max-w-md border border-border">
+            <div className="p-4 border-b border-border">
               <h2 className="text-lg font-semibold text-white">Nova Tarefa</h2>
             </div>
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
               <div>
-                <label className="block text-sm text-dark-300 mb-1">Título *</label>
-                <input type="text" required value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-dark-800 border border-dark-700 text-sm outline-none focus:border-blue-500" />
+                <label className="block text-sm text-muted-foreground mb-1">Título *</label>
+                <input type="text" required value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="block text-sm text-dark-300 mb-1">Descrição</label>
-                <textarea rows={3} value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-dark-800 border border-dark-700 text-sm outline-none focus:border-blue-500 resize-none" />
+                <label className="block text-sm text-muted-foreground mb-1">Descrição</label>
+                <textarea rows={3} value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm outline-none focus:border-blue-500 resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-dark-300 mb-1">Status</label>
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-dark-800 border border-dark-700 text-sm outline-none">
+                  <label className="block text-sm text-muted-foreground mb-1">Status</label>
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm outline-none">
                     {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-dark-300 mb-1">Prioridade</label>
-                  <select value={form.prioridade} onChange={(e) => setForm({ ...form, prioridade: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-dark-800 border border-dark-700 text-sm outline-none">
+                  <label className="block text-sm text-muted-foreground mb-1">Prioridade</label>
+                  <select value={form.prioridade} onChange={(e) => setForm({ ...form, prioridade: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm outline-none">
                     {PRIORIDADES.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 rounded-lg border border-dark-700 text-dark-300 hover:bg-dark-800">Cancelar</button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted">Cancelar</button>
                 <button type="submit" className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white">Salvar</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ open, id: null })}
+        onConfirm={confirmDelete}
+        title="Excluir Tarefa"
+        description="Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita."
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="destructive"
+      />
     </div>
   );
 }

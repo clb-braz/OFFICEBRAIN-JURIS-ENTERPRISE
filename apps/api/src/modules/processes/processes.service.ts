@@ -1,21 +1,40 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CNJValidator } from '../../common/utils/cnj-validator';
+import { CreateProcessDto } from './dto/create-process.dto';
 
 @Injectable()
 export class ProcessesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: any) {
+  async create(data: CreateProcessDto) {
+    // Valida e formata CNJ
+    if (!CNJValidator.validate(data.numeroCnj)) {
+      throw new BadRequestException('Número CNJ inválido');
+    }
+
+    const numeroCnjFormatado = CNJValidator.format(data.numeroCnj);
+
+    // Verifica se CNJ já existe
+    const existing = await this.prisma.processo.findUnique({
+      where: { numeroCnj: numeroCnjFormatado },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Processo com este CNJ já existe');
+    }
+
     const { clienteId, partes, ...processoData } = data;
     
     return this.prisma.processo.create({
       data: {
         ...processoData,
+        numeroCnj: numeroCnjFormatado,
         clientes: clienteId ? {
           create: { clienteId, participacao: 'AUTOR', principal: true },
         } : undefined,
         partes: partes?.length ? {
-          createMany: { data: partes },
+          createMany: { data: partes.map((parte) => ({ ...parte, tipo: parte.tipo as any })) },
         } : undefined,
       },
       include: {
@@ -57,7 +76,7 @@ export class ProcessesService {
   }
 
   async findOne(id: string) {
-    return this.prisma.processo.findUnique({
+    const processo = await this.prisma.processo.findUnique({
       where: { id },
       include: {
         clientes: { include: { cliente: true } },
@@ -71,6 +90,12 @@ export class ProcessesService {
         honorarios: true,
       },
     });
+
+    if (!processo) {
+      throw new NotFoundException('Processo não encontrado');
+    }
+
+    return processo;
   }
 
   async update(id: string, data: any) {

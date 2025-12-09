@@ -1,19 +1,36 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const logger = new Logger('Bootstrap');
+  const app = await NestFactory.create(AppModule, {
+    logger: process.env.NODE_ENV === 'production' 
+      ? ['error', 'warn', 'log'] 
+      : ['error', 'warn', 'log', 'debug', 'verbose'],
+  });
   
   // CORS
+  const corsOrigins = process.env.CORS_ORIGIN 
+    ? process.env.CORS_ORIGIN.split(',')
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
+  
+  // Global Exception Filter
+  app.useGlobalFilters(new HttpExceptionFilter());
+  
+  // Global Interceptors
+  app.useGlobalInterceptors(new LoggingInterceptor());
   
   // Validation
   app.useGlobalPipes(new ValidationPipe({
@@ -22,6 +39,8 @@ async function bootstrap() {
     transformOptions: {
       enableImplicitConversion: true,
     },
+    forbidNonWhitelisted: true,
+    disableErrorMessages: process.env.NODE_ENV === 'production',
   }));
   
   // Global prefix
@@ -54,14 +73,16 @@ async function bootstrap() {
   const port = process.env.PORT || 3001;
   await app.listen(port);
   
-  console.log('');
-  console.log('='.repeat(60));
-  console.log('  OFFICEBRAIN JURIS ENTERPRISE - API');
-  console.log('='.repeat(60));
-  console.log(`  API:     http://localhost:${port}/api`);
-  console.log(`  Swagger: http://localhost:${port}/api/docs`);
-  console.log('='.repeat(60));
-  console.log('');
+  logger.log('');
+  logger.log('='.repeat(60));
+  logger.log('  OFFICEBRAIN JURIS ENTERPRISE - API');
+  logger.log('='.repeat(60));
+  logger.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.log(`  API:     http://localhost:${port}/api`);
+  logger.log(`  Swagger: http://localhost:${port}/api/docs`);
+  logger.log(`  Health:  http://localhost:${port}/api/health`);
+  logger.log('='.repeat(60));
+  logger.log('');
 }
 
 bootstrap();
